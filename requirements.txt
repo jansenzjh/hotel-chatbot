@@ -1,0 +1,7 @@
+pandas
+python-dotenv
+supabase
+google-generativeai
+torch
+sentence-transformers
+streamlit
