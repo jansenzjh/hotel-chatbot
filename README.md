@@ -19,7 +19,7 @@ graph TD
         A(fa:fa-file-csv listings.csv)
         B(fa:fa-code process_tokyo_listings.py)
         C(fa:fa-file-alt clean_listings.jsonl)
-        D(fa:fa-code upload_local_embeddings.py)
+        D(fa:fa-code upload_to_supabase.py)
         E(fa:fa-brain-circuit Local Model <br> 'google/embeddinggemma-300m')
         F[fa:fa-database Supabase DB <br> pgvector Table]
 
@@ -136,7 +136,7 @@ This project was built around several key engineering decisions:
         * Run the upload script. This will read `clean_listings.jsonl`, generate 768-dimension embeddings for each listing using your local `embeddinggemma` model, and upload them to Supabase.
         * This will take some time.
             ```sh
-            python upload_local_embeddings.py
+            python upload_to_supabase.py
             ```
 
 
