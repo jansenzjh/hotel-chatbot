@@ -11,11 +11,9 @@ load_dotenv()  # Load environment variables from .env file
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
-# GOOGLE_API_KEY is no longer needed for sentence_transformers
-# genai.configure(api_key=GOOGLE_API_KEY) is also no longer needed
 
-INPUT_FILE = './data_process/clean_listings.jsonl'
-SUPABASE_TABLE = 'properties'
+INPUT_FILE = 'clean_listings.jsonl'
+SUPABASE_TABLE = 'listings'
 BATCH_SIZE = 50  # Number of listings to process and upload at a time
 EMBEDDING_MODEL = "google/embeddinggemma-300m" # Hugging Face model name
 # --- End Configuration ---
@@ -48,6 +46,14 @@ def get_embedding(text: str, model_instance: SentenceTransformer) -> list[float]
         print(f"Error generating embedding for text: {text[:50]}...")
         print(f"Error: {e}")
         return None
+
+
+def sanitize_record(record: dict) -> dict:
+    """Replaces NaN/inf float values with None for JSON compliance."""
+    for key, value in record.items():
+        if isinstance(value, float) and (value != value or value == float('inf') or value == float('-inf')):
+            record[key] = None
+    return record
 
 
 def upload_batch(supabase: Client, batch: list[dict], max_retries: int = 3):
@@ -130,21 +136,78 @@ def main():
                     # This maps our JSON keys to the exact SQL table column names
                     db_record = {
                         'id': listing.get('id'),
-                        'name': listing.get('name'),
-                        'rag_document': text_to_embed,
-                        'price_cleaned': listing.get('price_cleaned'),
-                        # IMPORTANT: Map the key from the JSONL to the table column name
-                        'neighbourhood': listing.get('neighbourhood_cleansed'), 
-                        'room_type': listing.get('room_type'),
-                        # Cast to integer to match table schema
+                        'listing_url': listing.get('listing_url', ''),
+                        'last_scraped': listing.get('last_scraped', ''),
+                        'source': listing.get('source', ''),
+                        'name': listing.get('name', ''),
+                        'description': listing.get('description', ''),
+                        'neighborhood_overview': listing.get('neighborhood_overview', ''),
+                        'host_url': listing.get('host_url', ''),
+                        'host_name': listing.get('host_name', ''),
+                        'host_since': listing.get('host_since', ''),
+                        'host_location': listing.get('host_location', ''),
+                        'host_about': listing.get('host_about', ''),
+                        'host_response_time': listing.get('host_response_time', ''),
+                        'host_response_rate': listing.get('host_response_rate', ''),
+                        'host_acceptance_rate': listing.get('host_acceptance_rate', ''),
+                        'host_is_superhost': listing.get('host_is_superhost', ''),
+                        'host_neighbourhood': listing.get('host_neighbourhood', ''),
+                        'host_listings_count': int(listing.get('host_listings_count', 0)),
+                        'host_total_listings_count': int(listing.get('host_total_listings_count', 0)),
+                        'host_verifications': listing.get('host_verifications', ''),
+                        'host_has_profile_pic': listing.get('host_has_profile_pic', ''),
+                        'host_identity_verified': listing.get('host_identity_verified', ''),
+                        'neighbourhood': listing.get('neighbourhood', ''),
+                        'neighbourhood_cleansed': listing.get('neighbourhood_cleansed', ''),
+                        'neighbourhood_group_cleansed': listing.get('neighbourhood_group_cleansed', ''),
+                        'latitude': float(listing.get('latitude', 0.0)),
+                        'longitude': float(listing.get('longitude', 0.0)),
+                        'property_type': listing.get('property_type', ''),
+                        'room_type': listing.get('room_type', ''),
                         'accommodates': int(listing.get('accommodates', 0)),
-                        'bedrooms': int(listing.get('bedrooms', 0)),
-                        'latitude': listing.get('latitude'),
-                        'longitude': listing.get('longitude'),
-                        'embedding': embedding  # Add the generated embedding
+                        'bathrooms': float(listing.get('bathrooms', 0.0)),
+                        'bathrooms_text': listing.get('bathrooms_text', ''),
+                        'bedrooms': float(listing.get('bedrooms', 0.0)),
+                        'beds': float(listing.get('beds', 0.0)),
+                        'amenities': listing.get('amenities', ''),
+                        'price_cleaned': float(listing.get('price_cleaned', 0.0)),
+                        'minimum_nights': int(listing.get('minimum_nights', 0)),
+                        'maximum_nights': int(listing.get('maximum_nights', 0)),
+                        'minimum_minimum_nights': int(listing.get('minimum_minimum_nights', 0)),
+                        'maximum_minimum_nights': int(listing.get('maximum_minimum_nights', 0)),
+                        'minimum_maximum_nights': int(listing.get('minimum_maximum_nights', 0)),
+                        'maximum_maximum_nights': int(listing.get('maximum_maximum_nights', 0)),
+                        'minimum_nights_avg_ntm': float(listing.get('minimum_nights_avg_ntm', 0.0)),
+                        'maximum_nights_avg_ntm': float(listing.get('maximum_nights_avg_ntm', 0.0)),
+                        'calendar_updated': listing.get('calendar_updated', ''),
+                        'has_availability': listing.get('has_availability', ''),
+                        'availability_30': int(listing.get('availability_30', 0)),
+                        'availability_60': int(listing.get('availability_60', 0)),
+                        'availability_90': int(listing.get('availability_90', 0)),
+                        'availability_365': int(listing.get('availability_365', 0)),
+                        'calendar_last_scraped': listing.get('calendar_last_scraped', ''),
+                        'number_of_reviews': int(listing.get('number_of_reviews', 0)),
+                        'number_of_reviews_ltm': int(listing.get('number_of_reviews_ltm', 0)),
+                        'number_of_reviews_l30d': int(listing.get('number_of_reviews_l30d', 0)),
+                        'review_scores_rating': float(listing.get('review_scores_rating', 0.0)),
+                        'review_scores_accuracy': float(listing.get('review_scores_accuracy', 0.0)),
+                        'review_scores_cleanliness': float(listing.get('review_scores_cleanliness', 0.0)),
+                        'review_scores_checkin': float(listing.get('review_scores_checkin', 0.0)),
+                        'review_scores_communication': float(listing.get('review_scores_communication', 0.0)),
+                        'review_scores_location': float(listing.get('review_scores_location', 0.0)),
+                        'review_scores_value': float(listing.get('review_scores_value', 0.0)),
+                        'license': listing.get('license', ''),
+                        'instant_bookable': listing.get('instant_bookable', ''),
+                        'calculated_host_listings_count': int(listing.get('calculated_host_listings_count', 0)),
+                        'calculated_host_listings_count_entire_homes': int(listing.get('calculated_host_listings_count_entire_homes', 0)),
+                        'calculated_host_listings_count_private_rooms': int(listing.get('calculated_host_listings_count_private_rooms', 0)),
+                        'calculated_host_listings_count_shared_rooms': int(listing.get('calculated_host_listings_count_shared_rooms', 0)),
+                        'reviews_per_month': float(listing.get('reviews_per_month', 0.0)),
+                        'rag_document': text_to_embed,
+                        'embedding': embedding
                     }
                     
-                    listings_batch.append(db_record)
+                    listings_batch.append(sanitize_record(db_record))
 
                     # 5. Upload batch when full
                     if len(listings_batch) >= BATCH_SIZE:

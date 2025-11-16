@@ -5,3 +5,4 @@ google-generativeai
 torch
 sentence-transformers
 streamlit
+pydeck
