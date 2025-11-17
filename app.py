@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import google.generativeai as genai
 from supabase import create_client, Client
-from sentence_transformers import SentenceTransformer
+import ollama
 from dotenv import load_dotenv
 
 # --- Configuration ---
@@ -11,11 +11,10 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
-# Local Embedding Model
-# NEW: Updated to the Gemma model
-EMBEDDING_MODEL_NAME = 'google/embeddinggemma-300m' 
-# NEW: This must match the VECTOR() dimension in your new SQL file (768)
-VECTOR_DIMENSION = 768 
+# Ollama Embedding Model
+EMBEDDING_MODEL_NAME = 'mxbai-embed-large' 
+# Vector dimension for mxbai-embed-large
+VECTOR_DIMENSION = 1024 
 
 # Gemini Generative Model
 GENERATIVE_MODEL_NAME = 'gemini-2.5-flash-lite'
@@ -32,17 +31,6 @@ def init_supabase() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @st.cache_resource
-def load_embedding_model() -> SentenceTransformer:
-    """
-    Loads and caches the SentenceTransformer model.
-    This is the "hosting" part - it only runs once!
-    """
-    print(f"Loading local embedding model: {EMBEDDING_MODEL_NAME}...")
-    model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    print("Embedding model loaded.")
-    return model
-
-@st.cache_resource
 def init_generative_model() -> genai.GenerativeModel:
     """Initializes and returns the Gemini generative model."""
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -54,18 +42,22 @@ def get_rag_response(user_query: str):
     """
     Performs the full RAG pipeline and streams the response.
     """
-    embed_model = load_embedding_model()
     supabase = init_supabase()
     gen_model = init_generative_model()
 
     # 1. Embed the user's query
     yield "Embedding your query...\n\n"
-    query_embedding = embed_model.encode(user_query).tolist()
+    try:
+        response = ollama.embeddings(model=EMBEDDING_MODEL_NAME, prompt=user_query)
+        query_embedding = response["embedding"]
+    except Exception as e:
+        yield f"Error embedding query with Ollama: {e}"
+        return
 
     # 2. Search Supabase for similar documents
     yield "Searching for relevant hotels...\n\n"
     try:
-        results = supabase.rpc('match_properties', {
+        results = supabase.rpc('match_properties_1024', {
             'query_embedding': query_embedding,
             'match_threshold': MATCH_THRESHOLD,
             'match_count': MATCH_COUNT

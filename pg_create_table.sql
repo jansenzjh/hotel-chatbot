@@ -2,7 +2,7 @@
 create extension if not exists vector with schema public;
 
 -- 2. Create a table to store your listings
-create table if not exists listings (
+create table if not exists listings_1024 (
   id bigint primary key,
   listing_url text,
   last_scraped text,
@@ -72,12 +72,11 @@ create table if not exists listings (
   calculated_host_listings_count_shared_rooms integer,
   reviews_per_month float,
   rag_document text,
-  embedding vector(768)
+  embedding vector(1024)
 );
-
 -- 3. Create a function to search for listings
-create or replace function match_properties (
-  query_embedding vector(768),
+create or replace function match_properties_1024 (
+  query_embedding vector(1024),
   match_threshold float,
   match_count int
 )
@@ -94,16 +93,16 @@ returns table (
 language sql stable
 as $$
   select
-    listings.id,
-    listings.name,
-    listings.listing_url,
-    listings.latitude,
-    listings.longitude,
-    listings.rag_document,
-    listings.price_cleaned,
-    1 - (listings.embedding <=> query_embedding) as similarity
-  from listings
-  where 1 - (listings.embedding <=> query_embedding) > match_threshold
+    listings_1024.id,
+    listings_1024.name,
+    listings_1024.listing_url,
+    listings_1024.latitude,
+    listings_1024.longitude,
+    listings_1024.rag_document,
+    listings_1024.price_cleaned,
+    1 - (listings_1024.embedding <=> query_embedding) as similarity
+  from listings_1024
+  where 1 - (listings_1024.embedding <=> query_embedding) > match_threshold
   order by similarity desc
   limit match_count;
 $$;

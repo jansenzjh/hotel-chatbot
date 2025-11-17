@@ -3,8 +3,7 @@ import json
 import time
 from dotenv import load_dotenv
 from supabase import create_client, Client
-import torch
-from sentence_transformers import SentenceTransformer
+import ollama
 
 # --- Configuration ---
 load_dotenv()  # Load environment variables from .env file
@@ -13,35 +12,20 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 INPUT_FILE = 'clean_listings.jsonl'
-SUPABASE_TABLE = 'listings'
+SUPABASE_TABLE = 'listings_1024'
 BATCH_SIZE = 50  # Number of listings to process and upload at a time
-EMBEDDING_MODEL = "google/embeddinggemma-300m" # Hugging Face model name
+EMBEDDING_MODEL = "mxbai-embed-large" # Ollama model name
 # --- End Configuration ---
 
-# Initialize the embedding model globally
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using device for embedding: {device}")
-try:
-    embedding_model_instance = SentenceTransformer(EMBEDDING_MODEL).to(device)
-except Exception as e:
-    print(f"Error loading SentenceTransformer model: {e}")
-    print("Please ensure the model is downloaded and available, and you have accepted its license on Hugging Face.")
-    embedding_model_instance = None # Set to None if loading fails
-
-def get_embedding(text: str, model_instance: SentenceTransformer) -> list[float] | None:
-    """Generates an embedding for the given text using the SentenceTransformer model."""
+def get_embedding(text: str, model_name: str) -> list[float] | None:
+    """Generates an embedding for the given text using the Ollama model."""
     if not text or not isinstance(text, str) or len(text.strip()) == 0:
         print("Warning: Skipping empty or invalid text.")
         return None
-    if model_instance is None:
-        print("Error: Embedding model not loaded.")
-        return None
-        
     try:
-        # The model automatically handles specific prefixes like 'query:' and 'text:' for optimal performance
-        # For RAG, we use 'text:' prefix
-        embedding = model_instance.encode([f"text: {text}"])[0]
-        return embedding.tolist() # Convert numpy array to list
+        # Assuming your Ollama server is running and accessible
+        response = ollama.embeddings(model=model_name, prompt=text)
+        return response["embedding"]
     except Exception as e:
         print(f"Error generating embedding for text: {text[:50]}...")
         print(f"Error: {e}")
@@ -93,11 +77,6 @@ def main():
         print("Please create a .env file with SUPABASE_URL, SUPABASE_SERVICE_KEY.")
         return
 
-    # Check if the embedding model was loaded successfully
-    if embedding_model_instance is None:
-        print("Error: Embedding model failed to load. Exiting.")
-        return
-
     try:
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception as e:
@@ -124,8 +103,7 @@ def main():
                         continue
 
                     # 3. Generate Embedding
-                    # No proactive sleep needed as the model is local
-                    embedding = get_embedding(text_to_embed, embedding_model_instance)
+                    embedding = get_embedding(text_to_embed, EMBEDDING_MODEL)
                     
                     if embedding is None:
                         print(f"Warning: Failed to embed listing {listing.get('id')}.")
