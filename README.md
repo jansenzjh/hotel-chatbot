@@ -20,14 +20,14 @@ graph TD
         B(fa:fa-code process_tokyo_listings.py)
         C(fa:fa-file-alt clean_listings.jsonl)
         D(fa:fa-code upload_to_supabase.py)
-        E(fa:fa-brain-circuit Local Model <br> 'google/embeddinggemma-300m')
+        E(fa:fa-server-network Ollama <br> 'mxbai-embed-large')
         F[fa:fa-database Supabase DB <br> pgvector Table]
 
         A -- "1. Read 10,000+ rows" --> B
         B -- "2. Clean & Create RAG docs" --> C
         C -- "3. Read clean data" --> D
         D -- "4a. Send 'rag_document' text" --> E
-        E -- "4b. Return Vector[768]" --> D
+        E -- "4b. Return Vector[1024]" --> D
         D -- "5. Insert (Data + Vector)" --> F
     end
 
@@ -36,13 +36,13 @@ graph TD
         direction TB
         G(fa:fa-user User)
         H(fa:fa-desktop Streamlit App <br> 'app.py')
-        I(fa:fa-brain-circuit Local Model <br> 'google/embeddinggemma-300m')
+        I(fa:fa-server-network Ollama <br> 'mxbai-embed-large')
         J[fa:fa-database Supabase DB <br> CALL match_properties]
         K(fa:fA-server-network Gemini 2.5 Flash API <br> Generation)
 
         G -- "1. Asks Query" --> H
         H -- "2. Embed Query" --> I
-        I -- "3. Return Query Vector[768]" --> H
+        I -- "3. Return Query Vector[1024]" --> H
         H -- "4. Search DB for similar vectors" --> J
         J -- "5. Return Top 5 'context' docs" --> H
         H -- "6. Augment Prompt (Context + Query)" --> K
@@ -54,54 +54,59 @@ graph TD
 
 ### Tech Stack
 
-* Application Framework: `Streamlit`
-* Data Pipeline & Processing: `Python`, `pandas`
-* Vector Database: `Supabase` (PostgreSQL with `pgvector` extension)
-* Embedding Model (Retrieval): `google/embeddinggemma-300m` (Local model via sentence-transformers)
-* Generative Model (Generation): `Google Gemini 2.5 Flash` (via `google-generativeai` API)
+*   Application Framework: `Streamlit`
+*   Containerization: `Docker`, `Docker Compose`
+*   Data Pipeline & Processing: `Python`, `pandas`
+*   Vector Database: `Supabase` (PostgreSQL with `pgvector` extension)
+*   Embedding Model (Retrieval): `mxbai-embed-large` (via `Ollama`)
+*   Generative Model (Generation): `Google Gemini 2.5 Flash` (via `google-generativeai` API)
 
 ### Engineering Rationale
 
 This project was built around several key engineering decisions:
 
-1. **Why RAG?**
-    * Grounding: The RAG architecture prevents the generative AI from "hallucinating" or making up hotels. All answers are grounded in the context retrieved from the database.
-    * Scalability: The knowledge base (the hotel listings) is decoupled from the reasoning engine (the LLM). We can update the hotel data without having to retrain or fine-tune the model.
+1.  **Why RAG?**
+    *   Grounding: The RAG architecture prevents the generative AI from "hallucinating" or making up hotels. All answers are grounded in the context retrieved from the database.
+    *   Scalability: The knowledge base (the hotel listings) is decoupled from the reasoning engine (the LLM). We can update the hotel data without having to retrain or fine-tune the model.
 
-2. **Why a Local Embedding Model?**
-    * **Cost**: Using a local model like `embeddinggemma-300m` is free, both for the one-time ingestion of 10,000+ documents and for every real-time user query.
-    * **Performance**: The model is highly efficient, adding minimal latency to the user's search.
+2.  **Why a Local Embedding Model via Ollama?**
+    *   **Cost**: Using a local model like `mxbai-embed-large` served via Ollama is free, both for the one-time ingestion of 10,000+ documents and for every real-time user query.
+    *   **Performance**: The model is highly efficient, and running it as a separate service with Ollama allows for dedicated resource management.
+    *   **Flexibility**: Ollama makes it simple to swap out and experiment with different open-source embedding models.
+    *   **Consistency** (The Golden Rule): The same model is used to embed the documents for storage and to embed the user's query at runtime. This consistency is essential for the vector search to find relevant matches.
 
-    * **Consistency** (The Golden Rule): The same model is used to embed the documents for storage and to embed the user's query at runtime. This consistency is essential for the vector search to find relevant matches.
+3.  **Why `gemini-2.5-flash-lite` for Generation?**
 
-3. **Why `gemini-2.5-flash-lite` for Generation?**
+    *   This is a "grounded" summarization task, not a complex creative task. `2.5-flash-lite` offers the perfect trade-off of speed and cost, providing a fast, conversational feel to the chat interface while remaining highly economical.
 
-    * This is a "grounded" summarization task, not a complex creative task. `2.5-flash-lite` offers the perfect trade-off of speed and cost, providing a fast, conversational feel to the chat interface while remaining highly economical.
+4.  **Why Docker?**
+    *   **Reproducibility**: Docker containers bundle the application and its dependencies, ensuring that it runs the same way everywhere, from local development to production.
+    *   **Simplified Setup**: A single `docker-compose up` command is all that's needed to build and run the entire application stack, eliminating complex local setup and dependency issues.
+    *   **Isolation**: The application runs in an isolated environment, preventing conflicts with other projects or system-wide packages.
 
 ### How to Run This Project Locally
 
-1. Prerequisites
+1.  **Prerequisites**
 
-    * Python 3.10+
-    * A free Supabase account.
-    * A Google AI Studio API Key (GOOGLE_API_KEY).
-    * The `listings.csv` dataset from Kaggle (Tokyo Airbnb Open Data, included in the repository).
+    *   [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed.
+    *   [Ollama](https://ollama.com/) installed and running on your host machine.
+    *   A free [Supabase](https://supabase.com/) account.
+    *   A [Google AI Studio API Key](https://aistudio.google.com/app/apikey) (for the generative part of the RAG pipeline).
 
-2. Initial Setup
-    1. Clone the repository:
-
+2.  **Initial Setup**
+    1.  Clone the repository:
         ```sh
         git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
         cd your-repo-name
         ```
 
-    2. Install dependencies:
+    2.  Pull the embedding model with Ollama:
         ```sh
-        pip install -r requirements.txt
+        ollama pull mxbai-embed-large
         ```
+        *(Ensure the Ollama application is running before executing this command.)*
 
-
-    3. Create your .env file: Create a file named .env in the root directory and add your secret keys:
+    3.  Create your `.env` file: Create a file named `.env` in the root directory and add your secret keys. This file is git-ignored for security.
         ```
         # Get from Supabase Project -> Settings -> API
         SUPABASE_URL="httpsYour-Project-URL.supabase.co"
@@ -111,47 +116,40 @@ This project was built around several key engineering decisions:
         GOOGLE_API_KEY="Your-Google-Gemini-API-Key"
         ```
 
-
-3. Data Ingestion (One-Time Setup)
+3.  **Data Ingestion (One-Time Setup)**
 
     This process populates your Supabase database with the hotel data and its vector embeddings.
-    
-    1. Run the Database Setup:
-        * Log in to your Supabase project.
-        * Go to the `SQL Editor` > `New Query`.
-        * Copy the entire contents of `setup_database_gemma.sql` into the editor and click `Run`.
-        * This will create your `properties` table and the `match_properties` search function.
 
-    2. Download and Process the Data:
+    1.  **Run the Database Setup:**
+        *   Log in to your Supabase project.
+        *   Go to the `SQL Editor` > `New Query`.
+        *   Copy the entire contents of `pg_create_table.sql` into the editor and click `RUN`.
+        *   This will create your `properties` table and the `match_properties` search function.
 
-        * Download the `listings.csv` file from the Kaggle link above.
-        * Place `listings.csv` in the root of your project directory.
-        * Run the processing script to clean the data:
+    2.  **Process, Embed, and Upload the Data:**
+        *   The `listings.csv` file is included in the repository.
+        *   The following commands use `docker-compose` to run the Python scripts inside a containerized environment. The `extra_hosts` setting in the `docker-compose.yml` file ensures the container can connect to the Ollama service running on your host machine.
+        *   First, clean the raw data:
             ```sh
-            python process_tokyo_listings.py
+            docker-compose run --rm app python process_tokyo_listings.py
             ```
-        * This will create a new file: `clean_listings.jsonl`.
-
-    3. Upload and Embed the Data:
-        * Run the upload script. This will read `clean_listings.jsonl`, generate 768-dimension embeddings for each listing using your local `embeddinggemma` model, and upload them to Supabase.
-        * This will take some time.
+            *This creates `clean_listings.jsonl`.*
+        *   Next, generate embeddings and upload to Supabase. This will take some time.
             ```sh
-            python upload_to_supabase.py
+            docker-compose run --rm app python upload_to_supabase.py
             ```
 
+4.  **Run the Chatbot**
 
-    4. Run the Chatbot
+    Once the data ingestion is complete, you can start the web application:
+    ```sh
+    docker-compose up --build
+    ```
+    The `--build` flag is only necessary the first time or after code changes.
 
-        Once the data ingestion is complete, you can start the web application:
-        ```sh
-        streamlit run app.py
-        ```
-
-
-Your browser will automatically open, and you can now chat with your RAG-powered application.
+    Open your browser to `http://localhost:8501` to chat with your RAG-powered application.
 
 ### Future Implementation
 
-* Hybrid Search: Combine the current vector search (semantic) with traditional SQL WHERE clauses (keyword/filter). This would allow for queries like, "Find me a place in Shinjuku for under 15,000 JPY."
-* Chat History: Implement conversational memory so the user can ask follow-up questions (e.g., "Which one of those has WiFi?").
-* Containerization: Dockerize the application and its dependencies for deployment.
+*   Hybrid Search: Combine the current vector search (semantic) with traditional SQL WHERE clauses (keyword/filter). This would allow for queries like, "Find me a place in Shinjuku for under 15,000 JPY."
+*   Chat History: Implement conversational memory so the user can ask follow-up questions (e.g., "Which one of those has WiFi?").
