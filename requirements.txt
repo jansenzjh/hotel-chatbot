@@ -6,3 +6,4 @@ torch
 sentence-transformers
 streamlit
 pydeck
+ollama
