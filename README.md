@@ -86,6 +86,8 @@ This project was built around several key engineering decisions:
 
 ### How to Run This Project Locally
 
+You can access the live demo of this chatbot online at: [https://chatbot.crazyhungry.party/](https://chatbot.crazyhungry.party/)
+
 1.  **Prerequisites**
 
     *   [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed.
