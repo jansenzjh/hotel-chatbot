@@ -1,3 +1,4 @@
+import logging
 import streamlit as st
 from config import (
     GENERATIVE_MODEL_NAME,
@@ -12,6 +13,9 @@ from services import (
 )
 from rag import RagPipeline
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 st.set_page_config(
     page_title="🏙️ Tokyo Hotel & Airbnb Chatbot",
     page_icon="🏨"
@@ -22,15 +26,18 @@ st.set_page_config(
 @st.cache_resource
 def init_rag_pipeline():
     """Initializes and returns the RAG pipeline."""
+    logging.info("Initializing RAG pipeline...")
     embedding_model = OllamaEmbeddingModel(EMBEDDING_MODEL_NAME)
     vector_store = SupabaseVectorStore()
     generative_model = GeminiGenerativeModel(GENERATIVE_MODEL_NAME)
     
-    return RagPipeline(
+    pipeline = RagPipeline(
         embedding_model=embedding_model,
         vector_store=vector_store,
         generative_model=generative_model
     )
+    logging.info("RAG pipeline initialized successfully.")
+    return pipeline
 
 # --- Streamlit UI ---
 
@@ -42,6 +49,7 @@ st.caption(f"Powered by Supabase, {EMBEDDING_MODEL_NAME} model, and {GENERATIVE_
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
+    logging.info("Initialized new chat session.")
 
 # Initialize RAG pipeline
 rag_pipeline = init_rag_pipeline()
@@ -53,6 +61,7 @@ for message in st.session_state.messages:
 
 # Accept user input
 if prompt := st.chat_input("Ask me about hotels in Tokyo (eg. 'hotel in shinjuku provide dryer and washer')..."):
+    logging.info(f"User query: {prompt}")
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
     # Display user message in chat message container
@@ -72,6 +81,7 @@ if prompt := st.chat_input("Ask me about hotels in Tokyo (eg. 'hotel in shinjuku
                 match_count=MATCH_COUNT
             )
         )
+    logging.info(f"Assistant response: {response_stream}")
         
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response_stream})
