@@ -30,7 +30,10 @@ graph TD
         E -- "4b. Return Vector[1024]" --> D
         D -- "5. Insert (Data + Vector)" --> F
     end
+```
 
+```mermaid
+graph TD
     %% --- Part 2: Live User Query (Real-Time RAG) ---
     subgraph "Part 2: Live User Query --Real-Time RAG"
         direction TB
@@ -49,7 +52,6 @@ graph TD
         K -- "7. Stream Grounded Answer" --> H
         H -- "8. Display Answer" --> G
     end
-
 ```
 
 ### Tech Stack
