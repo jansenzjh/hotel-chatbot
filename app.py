@@ -85,11 +85,3 @@ if prompt := st.chat_input("Ask me about hotels in Tokyo (eg. 'hotel in shinjuku
         
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response_stream})
-
-    # Display listing URLs if available
-    if hasattr(rag_pipeline, 'listing_urls') and rag_pipeline.listing_urls:
-        st.markdown("Listing URLs (static data from 2023, links could be invalid):\n\n")
-        for url in rag_pipeline.listing_urls:
-            st.markdown(f"- {url}")
-        # Clear listing_urls after displaying
-        rag_pipeline.listing_urls = []

@@ -41,16 +41,18 @@ graph TD
         H(fa:fa-desktop Streamlit App <br> 'app.py')
         I(fa:fa-server-network Ollama <br> 'mxbai-embed-large')
         J[fa:fa-database Supabase DB <br> CALL match_properties]
-        K(fa:fA-server-network Gemini 2.5 Flash API <br> Generation)
+        K(fa:fA-server-network Gemini 2.5 Flash API <br> Generation & Filter Extraction)
 
         G -- "1. Asks Query" --> H
-        H -- "2. Embed Query" --> I
-        I -- "3. Return Query Vector[1024]" --> H
-        H -- "4. Search DB for similar vectors" --> J
-        J -- "5. Return Top 5 'context' docs" --> H
-        H -- "6. Augment Prompt (Context + Query)" --> K
-        K -- "7. Stream Grounded Answer" --> H
-        H -- "8. Display Answer" --> G
+        H -- "2. Extract Filters (Self-Querying)" --> K
+        K -- "3. Return Filters" --> H
+        H -- "4. Embed Query" --> I
+        I -- "5. Return Query Vector[1024]" --> H
+        H -- "6. Search DB for similar vectors" --> J
+        J -- "7. Return Top 5 'context' docs" --> H
+        H -- "8. Augment Prompt (Context + Query)" --> K
+        K -- "9. Stream Grounded Answer" --> H
+        H -- "10. Display Answer" --> G
     end
 ```
 
@@ -155,5 +157,7 @@ You can access the live demo of this chatbot online at: [https://chatbot.crazyhu
 
 ### Future Implementation
 
-*   Hybrid Search: Combine the current vector search (semantic) with traditional SQL WHERE clauses (keyword/filter). This would allow for queries like, "Find me a place in Shinjuku for under 15,000 JPY."
 *   Chat History: Implement conversational memory so the user can ask follow-up questions (e.g., "Which one of those has WiFi?").
+
+The chatbot now supports price-based filtering (e.g., "Find me a place in Shinjuku for under 15,000 JPY.").
+The output format has also been improved: hotel names are now clickable links to their respective listings, and separate URL lists are no longer displayed.
