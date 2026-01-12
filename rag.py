@@ -44,10 +44,8 @@ class RagPipeline:
 
         # 3. Augment: Create the context
         rag_context = "--- CONTEXT ---\n"
-        listing_urls = []
         for i, match in enumerate(matches):
-            rag_context += f"Result {i+1}:\n{match['rag_document']}\n\n"
-            listing_urls.append(match['listing_url'])
+            rag_context += f"Result {i+1}:\n{match['rag_document']}\nURL: {match['listing_url']}\n\n"
         rag_context += "--- END CONTEXT ---\n\n"
 
         # Build the full prompt with history
@@ -57,7 +55,8 @@ class RagPipeline:
             "2. If the user asks a follow-up question, you can use the chat history to understand it.\n"
             "3. Do not make up information. Be concise and friendly.\n"
             "4. After providing the summary/answer, create a new section titled 'Hotels Found:'.\n"
-            "5. In this new section, list the **names** of all hotels you used to answer the question with bullet points.\n\n"
+            "5. In this new section, list the **names** of all hotels you used to answer the question. **CRITICAL:** Format each hotel name as a Markdown link using the URL provided in the context (e.g., `[Hotel Name](URL)`). **Do not list the URL separately.**\n"
+            "6. If no hotels are found, do not display the 'Hotels Found' section."
         )
 
         # Add chat history to the prompt
@@ -74,8 +73,5 @@ class RagPipeline:
         yield "Found matches! Asking the AI...\n\n"
         response_stream = self._generative_model.generate(prompt_with_history, stream=True)
         
-        # Store listing_urls to be accessed by the UI
-        self.listing_urls = listing_urls
-
         for chunk in response_stream:
             yield chunk.text
