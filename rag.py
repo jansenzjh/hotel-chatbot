@@ -25,9 +25,18 @@ class RagPipeline:
         yield "Embedding your query...\n\n"
         query_embedding = self._embedding_model.embed(user_query)
 
+        # 1.5 Extract filters (Self-Querying)
+        filters = {}
+        if hasattr(self._generative_model, 'extract_filters'):
+             yield "Analyzing query for filters...\n\n"
+             filters = self._generative_model.extract_filters(user_query)
+             if filters and (filters.get('min_price') is not None or filters.get('max_price') is not None):
+                 yield f"Applying price filters: {filters}\n\n"
+
         # 2. Search for similar documents
         yield "Searching for relevant hotels...\n\n"
-        matches = self._vector_store.search(query_embedding, match_threshold, match_count)
+        # Pass filters to search
+        matches = self._vector_store.search(query_embedding, match_threshold, match_count, filters=filters)
 
         if not matches:
             yield "I couldn't find any hotels that match your request. Try rephrasing your search."
