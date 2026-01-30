@@ -1,6 +1,7 @@
 pandas
 python-dotenv
-supabase
+
+psycopg2-binary
 google-generativeai
 torch
 streamlit

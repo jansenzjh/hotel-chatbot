@@ -19,9 +19,8 @@ graph TD
         A(fa:fa-file-csv listings.csv)
         B(fa:fa-code process_tokyo_listings.py)
         C(fa:fa-file-alt clean_listings.jsonl)
-        D(fa:fa-code upload_to_supabase.py)
         E(fa:fa-server-network Ollama <br> 'mxbai-embed-large')
-        F[fa:fa-database Supabase DB <br> pgvector Table]
+        F[fa:fa-database Local Postgres DB <br> pgvector Table]
 
         A -- "1. Read 10,000+ rows" --> B
         B -- "2. Clean & Create RAG docs" --> C
@@ -40,7 +39,7 @@ graph TD
         G(fa:fa-user User)
         H(fa:fa-desktop Streamlit App <br> 'app.py')
         I(fa:fa-server-network Ollama <br> 'mxbai-embed-large')
-        J[fa:fa-database Supabase DB <br> CALL match_properties]
+        J[fa:fa-database Local Postgres DB <br> CALL match_properties]
         K(fa:fA-server-network Gemini 2.5 Flash API <br> Generation & Filter Extraction)
 
         G -- "1. Asks Query" --> H
@@ -61,7 +60,7 @@ graph TD
 *   Application Framework: `Streamlit`
 *   Containerization: `Docker`, `Docker Compose`
 *   Data Pipeline & Processing: `Python`, `pandas`
-*   Vector Database: `Supabase` (PostgreSQL with `pgvector` extension)
+*   Vector Database: `PostgreSQL` (Local with `pgvector` extension)
 *   Embedding Model (Retrieval): `mxbai-embed-large` (via `Ollama`)
 *   Generative Model (Generation): `Google Gemini 2.5 Flash` (via `google-generativeai` API)
 
@@ -88,72 +87,55 @@ This project was built around several key engineering decisions:
     *   **Simplified Setup**: A single `docker-compose up` command is all that's needed to build and run the entire application stack, eliminating complex local setup and dependency issues.
     *   **Isolation**: The application runs in an isolated environment, preventing conflicts with other projects or system-wide packages.
 
-### How to Run This Project Locally
+### How to Run This Project
 
-You can access the live demo of this chatbot online at: [https://chatbot.crazyhungry.party/](https://chatbot.crazyhungry.party/)
+You can run this project in two modes:
 
-1.  **Prerequisites**
+#### Option 1: Easy Setup (Self-Contained in Docker)
+Best for getting started quickly. Everything runs in Docker containers.
+*   **Pros**: No setup required on your machine.
+*   **Cons**: Slower on macOS (Runs Ollama on CPU).
 
-    *   [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed.
-    *   [Ollama](https://ollama.com/) installed and running on your host machine.
-    *   A free [Supabase](https://supabase.com/) account.
-    *   A [Google AI Studio API Key](https://aistudio.google.com/app/apikey) (for the generative part of the RAG pipeline).
-
-2.  **Initial Setup**
-    1.  Clone the repository:
-        ```sh
-        git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-        cd your-repo-name
-        ```
-
-    2.  Pull the embedding model with Ollama:
-        ```sh
-        ollama pull mxbai-embed-large
-        ```
-        *(Ensure the Ollama application is running before executing this command.)*
-
-    3.  Create your `.env` file: Create a file named `.env` in the root directory and add your secret keys. This file is git-ignored for security.
-        ```
-        # Get from Supabase Project -> Settings -> API
-        SUPABASE_URL="httpsYour-Project-URL.supabase.co"
-        SUPABASE_SERVICE_KEY="Your-Supabase-SERVICE-ROLE-Key"
-
-        # Get from Google AI Studio
-        GOOGLE_API_KEY="Your-Google-Gemini-API-Key"
-        ```
-
-3.  **Data Ingestion (One-Time Setup)**
-
-    This process populates your Supabase database with the hotel data and its vector embeddings.
-
-    1.  **Run the Database Setup:**
-        *   Log in to your Supabase project.
-        *   Go to the `SQL Editor` > `New Query`.
-        *   Copy the entire contents of `pg_create_table.sql` into the editor and click `RUN`.
-        *   This will create your `properties` table and the `match_properties` search function.
-
-    2.  **Process, Embed, and Upload the Data:**
-        *   The `listings.csv` file is included in the repository.
-        *   The following commands use `docker-compose` to run the Python scripts inside a containerized environment. The `extra_hosts` setting in the `docker-compose.yml` file ensures the container can connect to the Ollama service running on your host machine.
-        *   First, clean the raw data:
-            ```sh
-            docker-compose run --rm app python process_tokyo_listings.py
-            ```
-            *This creates `clean_listings.jsonl`.*
-        *   Next, generate embeddings and upload to Supabase. This will take some time.
-            ```sh
-            docker-compose run --rm app python upload_to_supabase.py
-            ```
-
-4.  **Run the Chatbot**
-
-    Once the data ingestion is complete, you can start the web application:
-    ```sh
-    docker-compose up --build
+1.  **Start Services**:
+    ```bash
+    docker-compose up -d
     ```
-    The `--build` flag is only necessary the first time or after code changes.
 
-    Open your browser to `http://localhost:8501` to chat with your RAG-powered application.
+2.  **Ingest Data**:
+    ```bash
+    docker-compose run --rm app python ingest_data.py
+    ```
+
+#### Option 2: Native Performance (Recommended for macOS)
+Best for speed. Connects Docker to the Ollama app running natively on your Mac (uses GPU).
+
+1.  **Prerequisites**:
+    *   Install [Ollama](https://ollama.com/) on your Mac.
+    *   Pull the model: `ollama pull nomic-embed-text`
+    *   **Crucial Step**: Configure Ollama to accept external connections.
+        *   Run in terminal: `launchctl setenv OLLAMA_HOST "0.0.0.0"`
+        *   Restart the Ollama app.
+
+2.  **Start Services**:
+    ```bash
+    docker-compose -f docker-compose.native.yml up -d
+    ```
+
+3.  **Ingest Data**:
+    ```bash
+    docker-compose -f docker-compose.native.yml run --rm app python ingest_data.py
+    ```
+
+4.  **Run the App**:
+    ```bash
+    # For Option 1
+    docker-compose up
+
+    # For Option 2
+    docker-compose -f docker-compose.native.yml up
+    ```
+
+Open your browser to `http://localhost:8501`.
 
 ### Future Implementation
 

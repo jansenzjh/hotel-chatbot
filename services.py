@@ -4,10 +4,11 @@ Abstractions and implementations for external services.
 import logging
 import time
 from abc import ABC, abstractmethod
-from supabase import create_client, Client, ClientOptions
+import psycopg2
 import google.generativeai as genai
 import ollama
-from config import SUPABASE_URL, SUPABASE_KEY, GOOGLE_API_KEY, EMBEDDING_MODEL_NAME
+from psycopg2.extras import RealDictCursor
+from config import DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, DB_PORT, GOOGLE_API_KEY, EMBEDDING_MODEL_NAME
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -52,73 +53,78 @@ class OllamaEmbeddingModel(EmbeddingModel):
         """Embeds text using the Ollama model."""
         logging.info(f"Embedding text with Ollama: '{text[:50]}...'")
         try:
-            response = ollama.embeddings(model=self._model_name, prompt=text)
+            # Truncate to avoid exceeding 512 token limit. Reduced to 500 chars.
+            truncated_text = text[:500]
+            response = ollama.embeddings(model=self._model_name, prompt=truncated_text)
             logging.info("Successfully embedded text with Ollama.")
             return response["embedding"]
         except Exception as e:
             logging.error(f"Error embedding query with Ollama: {e}")
             raise RuntimeError(f"Error embedding query with Ollama: {e}") from e
 
-class SupabaseVectorStore(VectorStore):
-    """Implementation of the vector store using Supabase."""
+class PostgresVectorStore(VectorStore):
+    """Implementation of the vector store using Local PostgreSQL + pgvector."""
     def __init__(self):
-        logging.info("Initializing SupabaseVectorStore...")
-        options = ClientOptions(postgrest_client_timeout=30)
-        self._client: Client = create_client(
-            SUPABASE_URL,
-            SUPABASE_KEY,
-            options=options
-        )
-        logging.info("SupabaseVectorStore initialized successfully.")
+        logging.info("Initializing PostgresVectorStore...")
+        try:
+            self._connection_params = {
+                "host": DB_HOST,
+                "database": DB_NAME,
+                "user": DB_USER,
+                "password": DB_PASSWORD,
+                "port": DB_PORT
+            }
+            # Test connection
+            conn = psycopg2.connect(**self._connection_params)
+            conn.close()
+            logging.info("PostgresVectorStore initialized successfully (connection test passed).")
+        except Exception as e:
+            logging.error(f"Failed to connect to PostgreSQL: {e}")
+            raise RuntimeError("Could not connect to database") from e
 
     def search(self, embedding: list[float], match_threshold: float, match_count: int, filters: dict = None) -> list[dict]:
-        """Searches for similar properties in Supabase."""
+        """Searches for similar properties using the match_properties_filtered function."""
         retries = 3
         delay = 2
         
-        rpc_params = {
-            'query_embedding': embedding,
-            'match_threshold': match_threshold,
-            'match_count': match_count
-        }
+        # Prepare arguments for the SQL function
+        min_price = filters.get('min_price') if filters else None
+        max_price = filters.get('max_price') if filters else None
         
-        # Add filters if present
-        if filters:
-            if 'min_price' in filters and filters['min_price'] is not None:
-                rpc_params['min_price'] = filters['min_price']
-            if 'max_price' in filters and filters['max_price'] is not None:
-                rpc_params['max_price'] = filters['max_price']
-        
-        logging.info(f"Searching Supabase with params: {rpc_params}")
-        
-        rpc_function = 'match_properties_filtered' 
+        logging.info(f"Searching Postgres with filters: min={min_price}, max={max_price}")
         
         for i in range(retries):
+            conn = None
             try:
-                results = self._client.rpc(rpc_function, rpc_params).execute()
-                logging.info(f"Supabase search successful, found {len(results.data)} matches.")
-                return results.data
-            except Exception as e:
-                logging.warning(f"Supabase search attempt {i+1}/{retries} failed: {e}")
-                # Fallback to original function if the new one doesn't exist yet (optional safety)
-                if "function match_properties_filtered" in str(e) and "does not exist" in str(e):
-                     logging.warning("Fallback to match_properties_1024 (ignoring filters)")
-                     try:
-                        fallback_params = {
-                            'query_embedding': embedding,
-                            'match_threshold': match_threshold,
-                            'match_count': match_count
-                        }
-                        results = self._client.rpc('match_properties_1024', fallback_params).execute()
-                        return results.data
-                     except Exception as fallback_e:
-                         logging.error(f"Fallback failed: {fallback_e}")
+                conn = psycopg2.connect(**self._connection_params)
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Convert list to string format for pgvector casting
+                    embedding_str = f"[{','.join(map(str, embedding))}]"
+                    
+                    # Call the stored procedure
+                    # match_properties_filtered(query_embedding, match_threshold, match_count, min_price, max_price)
+                    cur.callproc('match_properties_filtered', (
+                        embedding_str,
+                        match_threshold,
+                        match_count,
+                        min_price,
+                        max_price
+                    ))
+                    results = cur.fetchall()
+                    
+                logging.info(f"Postgres search successful, found {len(results)} matches.")
+                return results
 
+            except Exception as e:
+                logging.warning(f"Postgres search attempt {i+1}/{retries} failed: {e}")
                 if i < retries - 1:
                     time.sleep(delay)
                 else:
-                    logging.error("All Supabase search attempts failed.")
+                    logging.error("All Postgres search attempts failed.")
                     raise RuntimeError(f"Error searching database: {e}") from e
+            finally:
+                if conn:
+                    conn.close()
 
 class GeminiGenerativeModel(GenerativeModel):
     """Implementation of the generative model using Google Gemini."""
