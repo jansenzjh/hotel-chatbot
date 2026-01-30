@@ -8,7 +8,7 @@ from config import (
 )
 from services import (
     OllamaEmbeddingModel,
-    SupabaseVectorStore,
+    PostgresVectorStore,
     GeminiGenerativeModel
 )
 from rag import RagPipeline
@@ -28,7 +28,7 @@ def init_rag_pipeline():
     """Initializes and returns the RAG pipeline."""
     logging.info("Initializing RAG pipeline...")
     embedding_model = OllamaEmbeddingModel(EMBEDDING_MODEL_NAME)
-    vector_store = SupabaseVectorStore()
+    vector_store = PostgresVectorStore()
     generative_model = GeminiGenerativeModel(GENERATIVE_MODEL_NAME)
     
     pipeline = RagPipeline(
@@ -44,7 +44,7 @@ def init_rag_pipeline():
 st.sidebar.markdown("[Read the Code on GitHub](https://github.com/jansenzjh/hotel-chatbot)")
 
 st.title("🏙️ Tokyo Hotel & Airbnb Chatbot")
-st.caption(f"Powered by Supabase, {EMBEDDING_MODEL_NAME} model, and {GENERATIVE_MODEL_NAME} model")
+st.caption(f"Powered by Local PostgreSQL, {EMBEDDING_MODEL_NAME} model, and {GENERATIVE_MODEL_NAME} model")
 
 # Initialize chat history
 if "messages" not in st.session_state:

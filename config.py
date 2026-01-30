@@ -8,13 +8,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Environment Variables ---
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+# --- Environment Variables ---
+DB_HOST = os.environ.get("DB_HOST", "localhost")
+DB_PORT = os.environ.get("DB_PORT", "5432")
+DB_NAME = os.environ.get("DB_NAME", "airbnb")
+DB_USER = os.environ.get("DB_USER", "postgres")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "postgres")
+
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
 # --- Model Configuration ---
-EMBEDDING_MODEL_NAME = 'mxbai-embed-large'
-VECTOR_DIMENSION = 1024  # Vector dimension for mxbai-embed-large
+# --- Model Configuration ---
+EMBEDDING_MODEL_NAME = 'nomic-embed-text'
+VECTOR_DIMENSION = 768  # Vector dimension for nomic-embed-text
 GENERATIVE_MODEL_NAME = 'gemini-2.5-flash-lite'
 
 # --- RAG Parameters ---
