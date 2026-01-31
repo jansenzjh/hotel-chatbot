@@ -19,7 +19,7 @@ graph TD
         A(fa:fa-file-csv listings.csv)
         B(fa:fa-code process_tokyo_listings.py)
         C(fa:fa-file-alt clean_listings.jsonl)
-        E(fa:fa-server-network Ollama <br> 'mxbai-embed-large')
+        E(fa:fa-server-network Ollama <br> 'nomic-embed-text')
         F[fa:fa-database Local Postgres DB <br> pgvector Table]
 
         A -- "1. Read 10,000+ rows" --> B
@@ -38,7 +38,7 @@ graph TD
         direction TB
         G(fa:fa-user User)
         H(fa:fa-desktop Streamlit App <br> 'app.py')
-        I(fa:fa-server-network Ollama <br> 'mxbai-embed-large')
+        I(fa:fa-server-network Ollama <br> 'nomic-embed-text')
         J[fa:fa-database Local Postgres DB <br> CALL match_properties]
         K(fa:fA-server-network Gemini 2.5 Flash API <br> Generation & Filter Extraction)
 
@@ -60,8 +60,8 @@ graph TD
 *   Application Framework: `Streamlit`
 *   Containerization: `Docker`, `Docker Compose`
 *   Data Pipeline & Processing: `Python`, `pandas`
-*   Vector Database: `PostgreSQL` (Local with `pgvector` extension)
-*   Embedding Model (Retrieval): `mxbai-embed-large` (via `Ollama`)
+*   Vector Database: `PostgreSQL` (Local with `pgvector` extension) - *Replaced Supabase for full local control, speed, and privacy.*
+*   Embedding Model (Retrieval): `nomic-embed-text` (via `Ollama`) - *High performance with 8k context window.*
 *   Generative Model (Generation): `Google Gemini 2.5 Flash` (via `google-generativeai` API)
 
 ### Engineering Rationale
@@ -73,10 +73,20 @@ This project was built around several key engineering decisions:
     *   Scalability: The knowledge base (the hotel listings) is decoupled from the reasoning engine (the LLM). We can update the hotel data without having to retrain or fine-tune the model.
 
 2.  **Why a Local Embedding Model via Ollama?**
-    *   **Cost**: Using a local model like `mxbai-embed-large` served via Ollama is free, both for the one-time ingestion of 10,000+ documents and for every real-time user query.
+    *   **Cost**: Using a local model like `nomic-embed-text` served via Ollama is free, both for the one-time ingestion of 10,000+ documents and for every real-time user query.
     *   **Performance**: The model is highly efficient, and running it as a separate service with Ollama allows for dedicated resource management.
     *   **Flexibility**: Ollama makes it simple to swap out and experiment with different open-source embedding models.
     *   **Consistency** (The Golden Rule): The same model is used to embed the documents for storage and to embed the user's query at runtime. This consistency is essential for the vector search to find relevant matches.
+
+3.  **Why Local Postgres instead of Supabase?**
+    *   **Simplicity & Speed**: Running the database locally in Docker next to the application reduces latency and external dependencies.
+    *   **Cost**: It's completely free and doesn't rely on cloud tier limits.
+    *   **Privacy**: All data stays within your controlled environment.
+
+3.  **Why `nomic-embed-text`?**
+    *   **Long Context**: Supports 8192 tokens, eliminating "context length exceeded" errors common with smaller models.
+    *   **Quality**: State-of-the-art performance for retrieval tasks.
+    *   **Consistency**: We use the same model for both ingestion and query embedding.
 
 3.  **Why `gemini-2.5-flash-lite` for Generation?**
 
@@ -137,9 +147,36 @@ Best for speed. Connects Docker to the Ollama app running natively on your Mac (
 
 Open your browser to `http://localhost:8501`.
 
+### Option 3: Logic on Mac (GPU), Database on Server (Hybrid)
+This is the **best setup** if your server is slow (low CPU/RAM) but you want to host the DB there. You run the heavy embedding generation on your Mac and send the data to the server's database.
+
+1.  **On the Server**:
+    Start only the database:
+    ```bash
+    # Ensure port 5435 is open
+    docker-compose -f docker-compose.native.yml up -d db
+    ```
+
+2.  **On your Mac**:
+    Run the ingestion script, pointing it to your server's IP:
+    ```bash
+    # Replace 192.168.1.XX with your Server's LAN IP
+    docker-compose -f docker-compose.native.yml run --rm \
+      -e DB_HOST=192.168.1.XX \
+      -e DB_PORT=5435 \
+      app python ingest_data.py
+    ```
+
+3.  **On the Server**:
+    Once ingestion is done, start the app:
+    ```bash
+    docker-compose -f docker-compose.native.yml up -d
+    ```
+
 ### Future Implementation
 
-*   Chat History: Implement conversational memory so the user can ask follow-up questions (e.g., "Which one of those has WiFi?").
+*   **Local LLM Support**: Switch to a fully local generation model (e.g., `Llama 3` or `Mistral` via Ollama) for complete privacy and offline capability. This is ideal for powerful hosts (e.g., M-series Macs), while the current API approach is better for low-spec servers.
+*   Chat History: Implement conversational memory so the user can ask follow-up questions.
+*   More Filters: Add filters for amenities, room type, etc.
 
-The chatbot now supports price-based filtering (e.g., "Find me a place in Shinjuku for under 15,000 JPY.").
-The output format has also been improved: hotel names are now clickable links to their respective listings, and separate URL lists are no longer displayed.
+The chatbot now supports price-based filtering and generates clickable links for properties.
