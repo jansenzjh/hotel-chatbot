@@ -3,6 +3,5 @@ python-dotenv
 
 psycopg2-binary
 google-generativeai
-torch
 streamlit
 ollama
